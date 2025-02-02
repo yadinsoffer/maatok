@@ -18,30 +18,12 @@ def get_prompt(video_path):
     return f"""
 Prompt:
 
-You are to generate a short TikTok voiceover script that has maximum 102 words. The script must promote a unique concept of creative workshops hosted in a Manhattan loft and should include the following key points:
-	1.	Concept Introduction:
-	•	Introduce the innovative idea: "You have got to check out this new concept of creative workshops in this Manhattan loft."
-	2.	Location:
-	•	Mention that the loft is located in Hudson Yards.
-	3.	Ownership and Background:
-	•	State that the loft is owned by Maayan Adin, a designer who also owns a multidisciplinary creative studio.
-	•	Include that Maayan Adin has designed high-end hotels and restaurants.
-	4.	Workshop Details:
-	•	Emphasize that she is sharing her love for art, hospitality, and creativity through exclusive, one-of-a-kind magical artistic workshops.
-	•	Reference the recent Mixology Workshop and the current Mosaic Pottery workshop.
-	5.	Call to Action:
-	•	Inform the audience that spots are limited.
-	•	Encourage viewers to follow her to know when new workshops are announced and to buy tickets through the link in her bio before they sell out.
-
-Additional Requirements:
-	•	The script must vary slightly in wording each time it is generated, while still covering all of the above points.
-	•	Ensure the script reads naturally for a voiceover and engages the listener.
-	•	Do not include any tone directives or annotations.
-	•	The final output should be a cohesive and energetic script that fits exactly within the specified maximum 102 words.
-
-Your output should be a complete script that a voiceover artist can read, ensuring all essential details are clearly and attractively conveyed.
+You are to generate a short TikTok voiceover script that has maximum 102 words. It should not be more than 20 seconds when read out loud. Max 102 words. 
+Here is an example of a great script, it should always resmseble that one: 
+"You have got to check out this new concept of creative workshops in this Manhattan loft.  The loft is located in Hudson Yards and own by Maayan Adin, a designer and owner of her multidisciplinary creative studio. She has designed high-end hotels and restaurants and now is sharing her love for art, hospitality and creativity through those one-of-a-kind exclusive magical artistic workshops. Recently she had the Mixology Workshop and currently running the Mosaic Pottery workshop. Spots are limited so follow her to know when she drops a new one and buy tickets in the link in her bio before they sell out!"
 
 """
+
 
 def generate_script(video_path):
     try:
