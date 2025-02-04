@@ -71,19 +71,49 @@ def extract_video_metadata(video_path: str) -> Dict[str, Union[float, str]]:
     except (json.JSONDecodeError, KeyError) as e:
         raise RuntimeError(f"Failed to parse metadata: {str(e)}")
 
-def get_video_duration(video_path: str) -> float:
+def get_duration(file_path: str) -> float:
     """
-    Get the duration of a video file in seconds.
+    Get the duration of a media file (video or audio).
     
     Args:
-        video_path (str): Path to the video file
+        file_path (str): Path to the media file
         
     Returns:
-        float: Duration of the video in seconds
+        float: Duration in seconds
         
     Raises:
-        FileNotFoundError: If the video file doesn't exist
-        RuntimeError: If duration cannot be extracted
+        ValueError: If duration cannot be extracted
     """
-    metadata = extract_video_metadata(video_path)
-    return metadata['duration'] 
+    try:
+        # Use ffprobe to get media information
+        cmd = [
+            'ffprobe',
+            '-v', 'error',
+            '-show_entries', 'format=duration',
+            '-of', 'json',
+            file_path
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise ValueError(f"ffprobe failed: {result.stderr}")
+        
+        data = json.loads(result.stdout)
+        duration = float(data['format']['duration'])
+        return duration
+        
+    except Exception as e:
+        raise ValueError(f"Could not extract duration from {file_path}: {str(e)}")
+
+def get_video_duration(file_path: str) -> float:
+    """
+    Get the duration of a video file.
+    For backward compatibility, this now just calls get_duration.
+    
+    Args:
+        file_path (str): Path to the video file
+        
+    Returns:
+        float: Duration in seconds
+    """
+    return get_duration(file_path) 

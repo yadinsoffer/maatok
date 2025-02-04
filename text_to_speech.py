@@ -13,7 +13,7 @@ if not API_KEY:
 set_api_key(API_KEY)
 
 class TextToSpeech:
-    def __init__(self, voice_id="8DzKSPdgEQPaK5vKG0Rs", model="eleven_multilingual_v2"):
+    def __init__(self, voice_id="FVQMzxJGPUBtfz1Azdoy", model="eleven_multilingual_v2"):
         """
         Initialize TextToSpeech with voice and model settings
         
@@ -26,7 +26,7 @@ class TextToSpeech:
         self.voice = Voice(
             voice_id=voice_id,
             settings=VoiceSettings(
-                stability=0.5,
+                stability=0.8,
                 similarity_boost=0.75,
                 style=1.0,
                 use_speaker_boost=True

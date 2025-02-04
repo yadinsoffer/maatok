@@ -1,6 +1,6 @@
 import os
 import argparse
-from typing import Optional
+from typing import Optional, List
 from pathlib import Path
 
 from file_system import get_video_files
@@ -10,56 +10,66 @@ from video_trimmer import VideoTrimmer
 from video_connector import VideoConnector
 from sound_remover import SoundRemover
 from metadata_extractor import get_video_duration
-from script_generator import generate_script
-from text_to_speech import TextToSpeech
+from script_generator import generate_script_and_audio
 from audio_attacher import AudioAttacher
+from google_drive_handler import GoogleDriveHandler
 
 class VideoProcessor:
     def __init__(
         self,
-        input_dir: str,
+        input_source: str,
         output_dir: str = "output_videos",
-        min_duration: float = 21.0,
-        max_duration: float = 28.0,
         min_videos: int = 2,
         max_videos: int = 6,
-        remove_audio: bool = True
+        remove_audio: bool = True,
+        is_drive_url: bool = False
     ):
         """
         Initialize the VideoProcessor.
         
         Args:
-            input_dir (str): Directory containing input videos
+            input_source (str): Directory containing input videos or Google Drive folder URL
             output_dir (str): Directory for output video (default: "output_videos")
-            min_duration (float): Minimum target duration in seconds (default: 21.0)
-            max_duration (float): Maximum target duration in seconds (default: 28.0)
             min_videos (int): Minimum number of videos to select (default: 2)
             max_videos (int): Maximum number of videos to select (default: 6)
             remove_audio (bool): Whether to remove audio from final video (default: True)
+            is_drive_url (bool): Whether input_source is a Google Drive URL (default: False)
         """
-        self.input_dir = input_dir
+        self.input_source = input_source
         self.output_dir = output_dir
-        self.min_duration = min_duration
-        self.max_duration = max_duration
         self.min_videos = min_videos
         self.max_videos = max_videos
         self.remove_audio = remove_audio
+        self.is_drive_url = is_drive_url
         
         # Create output directory
         os.makedirs(output_dir, exist_ok=True)
         
         # Initialize components
-        self.duration_controller = DurationController(min_duration, max_duration)
         self.trimmer = VideoTrimmer("trimmed_videos")
         self.connector = VideoConnector(output_dir)
         self.sound_remover = SoundRemover("muted_videos")
-        self.tts = TextToSpeech()
         self.audio_attacher = AudioAttacher(output_dir)
-    
+        
+        if is_drive_url:
+            self.drive_handler = GoogleDriveHandler()
+        
+    def get_video_files(self) -> List[str]:
+        """Get video files from either local directory or Google Drive"""
+        if self.is_drive_url:
+            return self.drive_handler.download_videos(self.input_source)
+        else:
+            return get_video_files(self.input_source)
+        
+    def cleanup(self):
+        """Clean up temporary files"""
+        if self.is_drive_url and hasattr(self, 'drive_handler'):
+            self.drive_handler.cleanup()
+        
     def process(self, output_path: Optional[str] = None) -> str:
         """
-        Process videos from input directory to create final concatenated video.
-        If videos are too short, they will be looped to reach the target duration.
+        Process videos from input source to create final concatenated video.
+        First generates script and audio, then matches video length to audio length.
         
         Args:
             output_path (Optional[str]): Path for final output video. If None, will generate one
@@ -68,21 +78,33 @@ class VideoProcessor:
             str: Path to the final output video
             
         Raises:
-            FileNotFoundError: If input directory doesn't exist
+            FileNotFoundError: If input source doesn't exist
             ValueError: If not enough valid videos found
             RuntimeError: If processing fails
         """
-        # Clean up any previous files
-        self.trimmer.clean_output_directory()
-        self.connector.clean_output_directory()
-        self.sound_remover.clean_output_directory()
-        
         try:
+            # Clean up any previous files
+            self.trimmer.clean_output_directory()
+            self.connector.clean_output_directory()
+            self.sound_remover.clean_output_directory()
+            
+            # First generate script and audio
+            print("\nGenerating script and audio...")
+            script, audio_path, audio_duration = generate_script_and_audio(self.output_dir)
+            print("\nGenerated Script:")
+            print("-" * 80)
+            print(script)
+            print("-" * 80)
+            print(f"Audio duration: {audio_duration:.2f} seconds")
+            
+            # Initialize duration controller with audio duration as target
+            self.duration_controller = DurationController(audio_duration)
+            
             # Get list of video files
-            print("Scanning for video files...")
-            video_files = get_video_files(self.input_dir)
+            print("\nGetting video files...")
+            video_files = self.get_video_files()
             if not video_files:
-                raise ValueError(f"No video files found in {self.input_dir}")
+                raise ValueError(f"No video files found in {self.input_source}")
             print(f"Found {len(video_files)} video files")
             
             # Randomly select videos
@@ -94,7 +116,7 @@ class VideoProcessor:
             )
             print(f"Selected {len(selected_videos)} videos")
             
-            # Calculate trim instructions
+            # Calculate trim instructions to match audio duration
             print("Calculating trim instructions...")
             trim_instructions = self.duration_controller.calculate_trim_instructions(selected_videos)
             print("Generated trim instructions")
@@ -132,73 +154,39 @@ class VideoProcessor:
             duration = get_video_duration(final_video)
             print(f"Created final video (duration: {duration:.2f}s)")
             
-            # Generate script for the video
-            print("\nGenerating voiceover script...")
-            script = generate_script(final_video)
-            if script:
-                print("\nGenerated Script:")
-                print("-" * 80)
-                print(script)
-                print("-" * 80)
-                
-                try:
-                    # Create base names for output files
-                    base_path = os.path.join(self.output_dir, "final_output")
-                    script_path = f"{base_path}_script.txt"
-                    audio_path = f"{base_path}_voice.mp3"
-                    final_output_path = f"{base_path}_with_voice.mp4"
-                    
-                    # Save script to file
-                    print(f"\nSaving script to: {script_path}")
-                    with open(script_path, "w") as f:
-                        f.write(script)
-                    
-                    # Generate voiceover audio
-                    print("\nGenerating voiceover audio...")
-                    self.tts.convert_text_to_speech(script, audio_path)
-                    
-                    # Attach voiceover to video
-                    print("\nAttaching voiceover to video...")
-                    final_video = self.audio_attacher.attach_audio(final_video, audio_path, final_output_path)
-                    print(f"Final video with voiceover saved to: {final_video}")
-                    
-                except Exception as e:
-                    print(f"Warning: Error during script/audio generation: {str(e)}")
-                    print("Continuing with silent video...")
+            # Attach the voiceover
+            print("\nAttaching voiceover to video...")
+            final_output_path = os.path.join(self.output_dir, "final_output_with_voice.mp4")
+            final_video = self.audio_attacher.attach_audio(final_video, audio_path, final_output_path)
+            print(f"Final video with voiceover saved to: {final_video}")
             
             return final_video
             
-        except Exception as e:
-            # Clean up on error
-            self.trimmer.clean_output_directory()
-            self.connector.clean_output_directory()
-            self.sound_remover.clean_output_directory()
-            raise
+        finally:
+            # Clean up
+            self.cleanup()
 
 def main():
     parser = argparse.ArgumentParser(description="Process and concatenate random video segments")
-    parser.add_argument("input_dir", help="Directory containing input videos")
+    parser.add_argument("input_source", help="Directory containing input videos or Google Drive folder URL")
     parser.add_argument("--output", "-o", help="Path for output video")
-    parser.add_argument("--min-duration", type=float, default=21.0,
-                      help="Minimum target duration in seconds (default: 21.0)")
-    parser.add_argument("--max-duration", type=float, default=28.0,
-                      help="Maximum target duration in seconds (default: 28.0)")
     parser.add_argument("--min-videos", type=int, default=2,
                       help="Minimum number of videos to select (default: 2)")
     parser.add_argument("--max-videos", type=int, default=6,
                       help="Maximum number of videos to select (default: 6)")
     parser.add_argument("--keep-audio", action="store_true",
                       help="Keep audio in the final video (default: remove audio)")
+    parser.add_argument("--drive-url", action="store_true",
+                      help="Treat input source as Google Drive folder URL")
     
     args = parser.parse_args()
     
     processor = VideoProcessor(
-        args.input_dir,
-        min_duration=args.min_duration,
-        max_duration=args.max_duration,
+        args.input_source,
         min_videos=args.min_videos,
         max_videos=args.max_videos,
-        remove_audio=not args.keep_audio
+        remove_audio=not args.keep_audio,
+        is_drive_url=args.drive_url
     )
     
     try:
