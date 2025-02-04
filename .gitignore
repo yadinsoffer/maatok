@@ -48,3 +48,7 @@ Thumbs.db
 output_videos/
 muted_videos/
 trimmed_videos/ 
+
+# Google Cloud credentials
+service-account.json
+token.pickle 
