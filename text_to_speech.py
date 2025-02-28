@@ -26,9 +26,9 @@ class TextToSpeech:
         self.voice = Voice(
             voice_id=voice_id,
             settings=VoiceSettings(
-                stability=0.8,
-                similarity_boost=0.75,
-                style=1.0,
+                stability=0.9,
+                similarity_boost=0.9,
+                style=0.7,
                 use_speaker_boost=True
             )
         )

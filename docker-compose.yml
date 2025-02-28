@@ -1,0 +1,17 @@
+version: '3'
+
+services:
+  maatiktok:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+      - ./output_videos:/app/output_videos
+    environment:
+      - PYTHONUNBUFFERED=1
+    # Add any environment variables from .env file
+    env_file:
+      - .env
+    command: python main.py "https://drive.google.com/drive/folders/1YR4GOKU_v0RHdYZCiYtsZto5IFziuKSg" --drive-url --add-captions
+

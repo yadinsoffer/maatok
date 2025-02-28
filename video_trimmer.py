@@ -50,33 +50,79 @@ class VideoTrimmer:
             )
         
         try:
-            # Construct ffmpeg command with re-encoding for accurate trimming
-            cmd = [
+            # First probe the input video to verify it's valid
+            probe_cmd = [
                 'ffmpeg',
+                '-v', 'error',
                 '-i', input_path,
+                '-f', 'null',
+                '-'
+            ]
+            
+            try:
+                subprocess.run(probe_cmd, check=True, capture_output=True, text=True)
+            except subprocess.CalledProcessError as e:
+                print(f"\nError probing input video {input_path}:")
+                print(e.stderr)
+                raise RuntimeError(f"Input video is corrupted or invalid: {input_path}")
+            
+            # Build FFmpeg command with resolution scaling and memory limits
+            command = [
+                'ffmpeg', '-i', input_path,
                 '-ss', str(start_time),
                 '-t', str(end_time - start_time),
-                '-c:v', 'libx264',  # Re-encode video
-                '-c:a', 'aac',      # Re-encode audio
-                '-y',               # Overwrite output file if it exists
+                '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease',
+                '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
+                '-maxrate', '8M', '-bufsize', '16M',  # Limit bitrate
+                '-max_muxing_queue_size', '1024',
+                '-c:a', 'aac',
+                '-progress', 'pipe:1',  # Output progress to stdout
+                '-nostats',             # Disable default stats
                 output_path
             ]
             
             # Run ffmpeg command
             result = subprocess.run(
-                cmd,
+                command,
                 capture_output=True,
                 text=True,
                 check=True
             )
             
+            # Verify the output file exists and is valid
             if not os.path.exists(output_path):
                 raise RuntimeError("Failed to create output file")
+                
+            # Probe the output file to verify it's valid
+            probe_output_cmd = [
+                'ffmpeg',
+                '-v', 'error',
+                '-i', output_path,
+                '-f', 'null',
+                '-'
+            ]
+            
+            try:
+                subprocess.run(probe_output_cmd, check=True, capture_output=True, text=True)
+            except subprocess.CalledProcessError as e:
+                print(f"\nError verifying output video {output_path}:")
+                print(e.stderr)
+                if os.path.exists(output_path):
+                    os.unlink(output_path)
+                raise RuntimeError(f"Generated video is corrupted or invalid")
             
             return output_path
             
         except subprocess.CalledProcessError as e:
+            print(f"\nFFmpeg error output:")
+            print(e.stderr)
+            if os.path.exists(output_path):
+                os.unlink(output_path)
             raise RuntimeError(f"Failed to trim video: {str(e)}")
+        except Exception as e:
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+            raise
     
     def clean_output_directory(self):
         """

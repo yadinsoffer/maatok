@@ -1,5 +1,7 @@
 # Environment variables
 .env
+.env.*
+!.env.example
 
 # Python
 __pycache__/
@@ -41,14 +43,44 @@ Thumbs.db
 # Video and Audio files
 *.mp4
 *.MOV
+*.mov
+*.avi
+*.mkv
+*.webm
 *.mp3
 *.wav
+*.m4a
+*.aac
+*.flac
+*.ogg
 
-# Output directories
+# Output and temporary directories
 output_videos/
+test_output/
 muted_videos/
-trimmed_videos/ 
+trimmed_videos/
+test_videos/
 
 # Google Cloud credentials
 service-account.json
-token.pickle 
+token.pickle
+*-service-account.json
+
+# Token and credential files
+tiktok_tokens.json
+*_tokens.json
+last_upload_id.txt
+
+# Debug files
+debug_response.bin
+*.bin
+*.log
+
+# SSL/TLS Certificates
+*.crt
+*.key
+*.pem
+*.p12
+
+# Docker
+.dockerignore

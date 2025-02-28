@@ -1,6 +1,7 @@
-from moviepy.editor import VideoFileClip, AudioFileClip, CompositeVideoClip
 import os
+import subprocess
 from typing import Optional
+import logging
 
 class AudioAttacher:
     def __init__(self, output_dir: str = "output_videos"):
@@ -15,7 +16,7 @@ class AudioAttacher:
     
     def attach_audio(self, video_path: str, audio_path: str, output_path: Optional[str] = None) -> str:
         """
-        Attach audio file to video file
+        Attach audio file to video file using FFmpeg
         
         Args:
             video_path (str): Path to the input video file
@@ -30,50 +31,63 @@ class AudioAttacher:
             RuntimeError: If audio attachment fails
         """
         try:
+            # Check if input files exist
+            if not os.path.exists(video_path):
+                raise FileNotFoundError(f"Video file not found: {video_path}")
+            if not os.path.exists(audio_path):
+                raise FileNotFoundError(f"Audio file not found: {audio_path}")
+            
             # Generate output path if not provided
             if output_path is None:
                 base_name = os.path.splitext(os.path.basename(video_path))[0]
                 output_path = os.path.join(self.output_dir, f"{base_name}_with_voiceover.mp4")
             
-            # Load video and audio
-            print(f"Loading video: {video_path}")
-            video = VideoFileClip(video_path)
-            print(f"Loading audio: {audio_path}")
-            audio = AudioFileClip(audio_path)
+            logging.info(f"Attaching audio to video using FFmpeg...")
+            logging.info(f"Video: {video_path}")
+            logging.info(f"Audio: {audio_path}")
+            logging.info(f"Output: {output_path}")
             
-            # Create composite with audio
-            print("Attaching audio to video...")
-            final_video = video.set_audio(audio)
+            # Build FFmpeg command
+            command = [
+                'ffmpeg',
+                '-i', video_path,      # Input video
+                '-i', audio_path,      # Input audio
+                '-c:v', 'copy',        # Copy video stream without re-encoding
+                '-c:a', 'aac',         # Convert audio to AAC
+                '-shortest',           # Match duration to shortest stream
+                output_path
+            ]
             
-            # Write output file
-            print(f"Writing output to: {output_path}")
-            final_video.write_videofile(
-                output_path,
-                codec='libx264',
-                audio_codec='aac',
-                temp_audiofile='temp-audio.m4a',
-                remove_temp=True
+            # Run FFmpeg
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True
             )
             
-            # Close clips to free up resources
-            video.close()
-            audio.close()
+            # Get output
+            _, stderr = process.communicate()
             
-            print("Successfully attached audio to video")
+            if process.returncode != 0:
+                raise RuntimeError(f"FFmpeg error: {stderr}")
+            
+            logging.info("Successfully attached audio to video")
             return output_path
             
         except Exception as e:
-            print(f"An error occurred while attaching audio: {str(e)}")
-            # Clean up resources in case of error
-            try:
-                video.close()
-                audio.close()
-            except:
-                pass
-            raise RuntimeError(f"Failed to attach audio: {str(e)}")
+            error_msg = f"Failed to attach audio: {str(e)}"
+            logging.error(error_msg)
+            raise RuntimeError(error_msg)
 
 def main():
     import argparse
+    
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
     
     parser = argparse.ArgumentParser(description='Attach audio to video file')
     parser.add_argument('video_path', help='Path to the input video file')
@@ -85,9 +99,9 @@ def main():
     attacher = AudioAttacher()
     try:
         output_path = attacher.attach_audio(args.video_path, args.audio_path, args.output)
-        print(f"\nSuccess! Final video saved to: {output_path}")
+        logging.info(f"Success! Final video saved to: {output_path}")
     except Exception as e:
-        print(f"\nError: {str(e)}")
+        logging.error(f"Error: {str(e)}")
         exit(1)
 
 if __name__ == "__main__":
